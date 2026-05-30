@@ -155,6 +155,108 @@ Mỗi đầu việc phải rõ ràng, ngắn gọn, hành động trực tiếp.
     }
   });
 
+  // API Route: AI Assistant Meeting Minutes Form Creator
+  app.post('/api/ai/meeting-minutes', async (req, res) => {
+    try {
+      const { title, content } = req.body;
+      if (!content) {
+        return res.status(400).json({ error: 'Nội dung ghi chép trống, không thể tạo biên bản.' });
+      }
+
+      const ai = getAiClient();
+      const currentDateString = new Date().toLocaleDateString('vi-VN', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const prompt = `Bạn là một Thư ký điều hành cấp cao chuyên nghiệp trong các Tập đoàn lớn tại Việt Nam.
+Hãy chuyển đổi toàn bộ thông tin thảo luận dưới dạng nháp, ghi chú thô, hoặc nội dung ghi âm cuộc họp sau đây thành một cấu trúc "Biên bản cuộc họp" chuẩn hóa, trang trọng và đầy đủ tính pháp lý theo quy chuẩn hành chính Việt Nam.
+
+Nội dung nguồn:
+Title: "${title || 'Chưa đặt tên'}"
+Content:
+"${content}"
+
+---
+Yêu cầu biên bản họp (Sử dụng cấu trúc Markdown chi tiết và thẩm mỹ):
+1. Phần Quốc hiệu & Tiêu đề trang trọng:
+   CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+   Độc lập - Tự do - Hạnh phúc
+   ---
+2. Tên văn bản (In hoa, đậm, canh giữa/lớn):
+   # BIÊN BẢN CUỘC HỌP
+   ## V/v: [Trích xuất chủ đề cuộc họp hoặc dự án phù hợp]
+3. Thông tin chung về cuộc họp (Nếu nội dung nguồn không có, hãy tự điền giả định hợp lý và điền chuyên nghiệp):
+   - **Thời gian diễn ra:** [Ngày giờ trích xuất hoặc mặc định: ${currentDateString}]
+   - **Địa điểm:** [Văn phòng họp Smart Notes / Phòng họp họp trực tuyến]
+   - **Chủ trì cuộc họp (Chairperson):** [Trích xuất tên hoặc ghi: Ông/Bà Trưởng nhóm điều hành]
+   - **Thư ký ghi nhận (Secretary):** [Thư ký trợ lý AI Smart Notes Pro]
+   - **Thành phần tham dự:** [Trích xuất các tên thành viên trao đổi từ nội dung cuộc họp hoặc ghi: Ban điều hành dự án và các thành viên liên quan]
+4. Mục đích & Chương trình nội dung (Agenda):
+   - [Nêu tóm lược mục tiêu chính của cuộc thảo luận này]
+5. Chi tiết tiến trình cuộc họp & Nội dung thảo luận (Phần này phải được diễn tả cực kỳ rõ ràng, khoa học dưới dạng phân bổ cụ thể theo từng chủ đề nghị sự hoặc phát biểu của từng vị trí tham dự):
+   - [Trình bày rõ ràng thành các mục h3 hoặc bullet points chuyên nghiệp]
+6. Kết luận chỉ đạo, Biện pháp giải quyết & Phân công công việc (Hành động / Action Items):
+   - [Đặc biệt bóc tách rõ ràng các đầu việc cụ thể được giao phó cho ai, thời hạn hoàn thành (Deadline) chi tiết. Cung cấp danh sách dạng checklist Markdown: "- [ ] [Nhiệm vụ] - Phân công: [Tên người] - Deadline: [Thời gian]" để tối ưu thao tác theo dõi tiếp theo]
+7. Phần ký tên xác nhận (Đầu ra giữ nguyên cấu trúc bảng ký tên trang nghiêm):
+   | Chủ trì cuộc họp | Thư ký ghi biên bản |
+   | :---: | :---: |
+   | (Ký, ghi rõ họ tên) | (Ký, ghi rõ họ tên) |
+
+Phong cách văn phong: Sử dụng từ ngữ chuẩn hành chính, từ vựng quản trị doanh nghiệp lịch thiệp, câu cú khúc chiết, chuẩn chính tả Việt Nam. Chỉ trả về mã Markdown của văn bản biên bản hoàn chỉnh.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+        config: {
+          systemInstruction: 'Bạn là chuyên gia soạn thảo Biên bản cuộc họp chuẩn hành chính doanh nghiệp Việt Nam. Chỉ trả về định dáng Markdown hoàn mỹ.',
+        }
+      });
+
+      const generatedMinutes = response.text || 'Không thể tạo biên bản từ dữ liệu thô.';
+      
+      // Propose automated metadata update too
+      const suggestionPrompt = `Hãy đề xuất một tiêu đề biên bản họp ngắn gọn (ví dụ: "Biên bản họp dự án A" - tối đa 50 ký tự) và danh sách 2-3 tags phù hợp cho biên bản hành chính này ở định dạng JSON.
+Đầu vào biên bản họp: "${generatedMinutes.substring(0, 500)}"`;
+
+      const suggestionResponse = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: suggestionPrompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              recommendedTitle: { type: Type.STRING },
+              recommendedTags: { type: Type.ARRAY, items: { type: Type.STRING } }
+            },
+            required: ['recommendedTitle', 'recommendedTags']
+          }
+        }
+      });
+
+      let suggestion = { recommendedTitle: '', recommendedTags: [] };
+      try {
+        suggestion = JSON.parse(suggestionResponse.text || '{}');
+      } catch (e) {
+        console.error('Failed to parse title suggestions:', e);
+      }
+
+      return res.json({
+        minutes: generatedMinutes,
+        suggestedTitle: suggestion.recommendedTitle,
+        suggestedTags: suggestion.recommendedTags,
+      });
+    } catch (error: any) {
+      console.error('Lỗi tạo Biên bản cuộc họp AI:', error);
+      return res.status(500).json({ error: 'Không thể xử lý tạo Biên bản cuộc họp AI lúc này.' });
+    }
+  });
+
   // Health probe endpoint
   app.get('/api/health', (req, res) => {
     return res.json({ status: 'healthy', timestamp: new Date().toISOString() });

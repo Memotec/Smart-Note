@@ -4,9 +4,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, Bell, Shield, Download, FileText, Image as ImageIcon, Sparkles, Loader2, Copy, Check, ListTodo, CheckSquare } from 'lucide-react';
+import { X, Calendar, Bell, Shield, Download, FileText, Image as ImageIcon, Sparkles, Loader2, Copy, Check, ListTodo, CheckSquare, HardDrive, ExternalLink } from 'lucide-react';
 import { Note } from '../types';
-import { formatDate, getPriorityMetadata, formatBytes, getFileGroup, getStatusMetadata } from '../utils';
+import { formatDate, getPriorityMetadata, formatBytes, getFileGroup, getStatusMetadata, getNoteColorMetadata } from '../utils';
 
 interface NoteDetailModalProps {
   note: Note | null;
@@ -36,6 +36,7 @@ export default function NoteDetailModal({ note, onClose, isOpen, onSaveAiData }:
 
   const metadata = getPriorityMetadata(note.priority);
   const statusMeta = getStatusMetadata(note.status);
+  const colorMeta = getNoteColorMetadata(note.color);
   const fileCount = note.files?.length || 0;
 
   const handleGenerateSummary = async () => {
@@ -108,7 +109,7 @@ export default function NoteDetailModal({ note, onClose, isOpen, onSaveAiData }:
 
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-sm justify-center items-center z-50 p-4 flex overflow-y-auto">
-      <div className="glass-panel w-full max-w-3xl rounded-3xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto shadow-2xl relative border border-slate-700/80 animate-in zoom-in-95 duration-200">
+      <div className={`glass-panel w-full max-w-3xl rounded-3xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto shadow-2xl relative border animate-in zoom-in-95 duration-200 ${colorMeta.bgClass} ${colorMeta.borderClass}`}>
         
         {/* Modal Header */}
         <div className="flex justify-between items-start gap-4 mb-5 pb-4 border-b border-slate-800">
@@ -156,7 +157,7 @@ export default function NoteDetailModal({ note, onClose, isOpen, onSaveAiData }:
           <div className="flex flex-wrap gap-1.5 mb-5 items-center">
             <span className="text-xs text-slate-500 font-bold uppercase tracking-wider mr-1">Nhãn:</span>
             {note.tags.map((tag) => (
-              <span key={tag} className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-indigo-500/10 border border-indigo-500/15 text-indigo-300">
+              <span key={tag} className={`text-[11px] font-bold px-2 py-0.5 rounded-lg bg-slate-900/40 border border-slate-800/60 ${colorMeta.accentClass}`}>
                 #{tag}
               </span>
             ))}
@@ -291,6 +292,7 @@ export default function NoteDetailModal({ note, onClose, isOpen, onSaveAiData }:
               {note.files?.map((file, idx) => {
                 const fileMeta = getFileGroup(file.type, file.name);
                 const isImage = file.type.startsWith('image/');
+                const isDriveFile = !!file.driveFileId;
                 
                 return (
                   <div 
@@ -298,10 +300,10 @@ export default function NoteDetailModal({ note, onClose, isOpen, onSaveAiData }:
                     className="flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden group hover:border-slate-700 transition-colors"
                   >
                     {/* Visual Preview for Images directly inside note details! */}
-                    {isImage && (
+                    {isImage && (file.data || isDriveFile) && (
                       <div className="h-44 bg-slate-950 overflow-hidden relative flex items-center justify-center border-b border-slate-800 bg-grid-pattern">
                         <img 
-                          src={file.data} 
+                          src={isDriveFile ? 'https://images.unsplash.com/photo-1544383835-bda2bc66a55d?auto=format&fit=crop&q=80&w=400' : file.data} 
                           alt={file.name} 
                           referrerPolicy="no-referrer"
                           className="max-h-full max-w-full object-contain hover:scale-105 transition-transform duration-300"
@@ -311,25 +313,44 @@ export default function NoteDetailModal({ note, onClose, isOpen, onSaveAiData }:
 
                     <div className="p-3.5 flex items-center justify-between gap-3 text-xs">
                       <div className="flex items-center gap-2 truncate">
-                        <span className="text-xl select-none">{fileMeta.icon}</span>
+                        <span className="text-xl select-none">{isDriveFile ? '📁' : fileMeta.icon}</span>
                         <div className="truncate">
                           <p className="font-bold text-slate-300 truncate" title={file.name}>
                             {file.name}
                           </p>
-                          <p className="text-[10px] text-slate-500">
-                            {formatBytes(file.size)}
+                          <p className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5 leading-none">
+                            <span>{fileMeta.label}</span>
+                            <span>•</span>
+                            <span>{formatBytes(file.size)}</span>
+                            {isDriveFile && (
+                              <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">
+                                Google Drive
+                              </span>
+                            )}
                           </p>
                         </div>
                       </div>
 
-                      <a
-                        href={file.data}
-                        download={file.name}
-                        className="p-2 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-400 rounded-xl transition-all cursor-pointer border border-slate-700/60"
-                        title="Tải tệp tin về thiết bị"
-                      >
-                        <Download className="w-4 h-4" />
-                      </a>
+                      {isDriveFile ? (
+                        <a
+                          href={file.webViewLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2 bg-slate-800 hover:bg-indigo-600 hover:text-white text-indigo-400 rounded-xl transition-all cursor-pointer border border-slate-750"
+                          title="Mở trực tiếp trên Google Drive"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      ) : (
+                        <a
+                          href={file.data}
+                          download={file.name}
+                          className="p-2 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-400 rounded-xl transition-all cursor-pointer border border-slate-700/60"
+                          title="Tải tệp tin về thiết bị"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
+                      )}
                     </div>
                   </div>
                 );

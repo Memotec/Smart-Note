@@ -8,6 +8,8 @@ export interface Attachment {
   type: string;
   size: number;
   data: string; // Base64 representation of the file
+  driveFileId?: string; // Google Drive unique file identifier
+  webViewLink?: string; // Direct url link to Google Drive item preview
 }
 
 export type Priority = 'high' | 'medium' | 'low';
@@ -27,6 +29,7 @@ export interface Note {
   files?: Attachment[];
   aiSummary?: string;
   aiChecklist?: string[];
+  color?: string; // Customized color preset for the note
 }
 
 export interface SyncConfig {

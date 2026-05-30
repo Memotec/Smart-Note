@@ -6,7 +6,7 @@
 import React from 'react';
 import { Trash2, Edit3, Bell, Paperclip, Calendar, Pin, Check, Sparkles } from 'lucide-react';
 import { Note } from '../types';
-import { formatDate, getPriorityMetadata, getStatusMetadata } from '../utils';
+import { formatDate, getPriorityMetadata, getStatusMetadata, getNoteColorMetadata } from '../utils';
 
 interface NoteCardProps {
   key?: string;
@@ -21,6 +21,7 @@ interface NoteCardProps {
 export default function NoteCard({ note, onView, onEdit, onDelete, onTogglePin, onUpdateStatus }: NoteCardProps) {
   const metadata = getPriorityMetadata(note.priority);
   const statusMeta = getStatusMetadata(note.status);
+  const colorMeta = getNoteColorMetadata(note.color);
   const fileCount = note.files?.length || 0;
   const hasAiSupport = !!(note.aiSummary || note.aiChecklist?.length);
 
@@ -29,8 +30,8 @@ export default function NoteCard({ note, onView, onEdit, onDelete, onTogglePin, 
       onClick={() => onView(note)}
       className={`rounded-2xl p-4 flex flex-col justify-between group cursor-pointer transition-all duration-150 border relative ${
         note.isPinned 
-          ? 'bg-slate-800/35 border-indigo-500/25 shadow-lg shadow-indigo-950/5' 
-          : 'bg-slate-850/20 hover:bg-slate-800/30 border-slate-800/80 hover:border-slate-750/70'
+          ? `${colorMeta.bgClass} ${colorMeta.hoverBgClass} border-indigo-500/40 shadow-lg shadow-indigo-950/10 hover:border-indigo-500/60` 
+          : `${colorMeta.bgClass} ${colorMeta.hoverBgClass} ${colorMeta.borderClass}`
       }`}
     >
       <div>
@@ -119,7 +120,7 @@ export default function NoteCard({ note, onView, onEdit, onDelete, onTogglePin, 
         {note.tags && note.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
             {note.tags.map((tag) => (
-              <span key={tag} className="text-[9px] font-medium bg-slate-800/40 text-indigo-400/90 px-1.5 py-0.5 rounded-md border border-slate-800">
+              <span key={tag} className={`text-[9px] font-semibold bg-slate-900/45 px-1.5 py-0.5 rounded-md border border-slate-800/60 ${colorMeta.accentClass}`}>
                 #{tag}
               </span>
             ))}

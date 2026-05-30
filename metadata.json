@@ -1,6 +1,6 @@
 {
   "name": "Smart Notes Pro",
   "description": "Ứng dụng ghi chú thông minh hỗ trợ nhắc nhở thời gian thực, lưu trữ đính kèm tệp tin và đồng bộ hóa dữ liệu.",
-  "requestFramePermissions": ["notification"],
+  "requestFramePermissions": ["notification", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

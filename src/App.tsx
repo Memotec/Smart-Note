@@ -11,6 +11,8 @@ import NoteDetailModal from './components/NoteDetailModal';
 import MobileBottomBar from './components/MobileBottomBar';
 import { Note, SyncConfig, Priority } from './types';
 import { formatDate } from './utils';
+import { initAuth, googleSignIn, logout, getAccessToken } from './lib/firebaseAuth';
+import { saveBackupToDrive, downloadDriveFile, findDriveBackupFile } from './utils/gdriveApi';
 import { 
   Bell, 
   AlertCircle, 
@@ -64,6 +66,14 @@ export default function App() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
+  // Google Drive Authentication states
+  const [gdriveUser, setGdriveUser] = useState<any | null>(null);
+  const [gdriveToken, setGdriveToken] = useState<string | null>(null);
+  const [isBackingUpDrive, setIsBackingUpDrive] = useState(false);
+  const [isRestoringDrive, setIsRestoringDrive] = useState(false);
+
+  const DRIVE_BACKUP_FILENAME = 'notes_backup_cloud.json';
+
   // Modal control states
   const [editorOpen, setEditorOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -90,6 +100,21 @@ export default function App() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
+  }, []);
+
+  // Sync / Listen to Firebase Google Drive Authentication state
+  useEffect(() => {
+    const unsubscribe = initAuth(
+      (user, token) => {
+        setGdriveUser(user);
+        setGdriveToken(token);
+      },
+      () => {
+        setGdriveUser(null);
+        setGdriveToken(null);
+      }
+    );
+    return () => unsubscribe();
   }, []);
 
   // Request notification permissions
@@ -433,6 +458,165 @@ export default function App() {
     }
   };
 
+  const handleExportJSON = () => {
+    try {
+      const dataStr = JSON.stringify(notes, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `smart_notes_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showSuccess('Đã xuất toàn bộ ghi chú thành tệp dữ liệu JSON thành công!');
+    } catch (err) {
+      console.error('Export error:', err);
+      setErrorMessage('Không thể xuất dữ liệu ghi chú.');
+    }
+  };
+
+  const handleLoginDrive = async () => {
+    try {
+      const result = await googleSignIn();
+      if (result) {
+        setGdriveUser(result.user);
+        setGdriveToken(result.accessToken);
+        showSuccess('Đã kết nối tài khoản Google Drive thành công!');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMessage('Kết nối thất bại. Lỗi: ' + (err.message || 'Unknown'));
+    }
+  };
+
+  const handleLogoutDrive = async () => {
+    try {
+      await logout();
+      setGdriveUser(null);
+      setGdriveToken(null);
+      showSuccess('Đã ngắt kết nối tài khoản Google Drive.');
+    } catch (err: any) {
+      console.error(err);
+      setErrorMessage('Không thể đăng xuất hoàn toàn.');
+    }
+  };
+
+  const handleBackupDrive = async () => {
+    if (!gdriveToken) {
+      setErrorMessage('Bạn chưa đăng nhập Google Drive.');
+      return;
+    }
+    setIsBackingUpDrive(true);
+    setErrorMessage(null);
+    try {
+      const dataStr = JSON.stringify(notes, null, 2);
+      await saveBackupToDrive(gdriveToken, DRIVE_BACKUP_FILENAME, dataStr);
+      showSuccess('Đã sao lưu toàn bộ ghi chú lên Google Drive cá nhân thành công!');
+    } catch (err: any) {
+      console.error(err);
+      setErrorMessage('Không thể sao lưu lên Google Drive: ' + (err.message || err));
+    } finally {
+      setIsBackingUpDrive(false);
+    }
+  };
+
+  const handleRestoreDrive = async (strategy: 'overwrite' | 'merge') => {
+    if (!gdriveToken) {
+      setErrorMessage('Bạn chưa đăng nhập Google Drive.');
+      return;
+    }
+    setIsRestoringDrive(true);
+    setErrorMessage(null);
+    try {
+      const backupFileId = await findDriveBackupFile(gdriveToken, DRIVE_BACKUP_FILENAME);
+      if (!backupFileId) {
+        setErrorMessage('Không tìm thấy tệp sao lưu "notes_backup_cloud.json" nào trên tài khoản Google Drive của bạn.');
+        return;
+      }
+      const jsonText = await downloadDriveFile(gdriveToken, backupFileId);
+      handleImportJSON(jsonText, strategy);
+      showSuccess('Đã khôi phục ghi chú từ Google Drive thành công!');
+    } catch (err: any) {
+      console.error(err);
+      setErrorMessage('Lỗi khôi phục từ Google Drive: ' + (err.message || err));
+    } finally {
+      setIsRestoringDrive(false);
+    }
+  };
+
+  const handleImportJSON = (jsonText: string, strategy: 'overwrite' | 'merge') => {
+    try {
+      if (!jsonText.trim()) {
+        throw new Error('Tệp trống rỗng, vui lòng chọn một tệp hợp lệ.');
+      }
+      
+      const importedData = JSON.parse(jsonText);
+      if (!Array.isArray(importedData)) {
+        throw new Error('Cấu trúc dữ liệu khôi phục không hợp lệ. Bản sao lưu phải là một danh sách ghi chú.');
+      }
+      
+      const validatedNotes: Note[] = [];
+      for (const item of importedData) {
+        if (!item || typeof item !== 'object') continue;
+        
+        const id = item.id ? String(item.id) : `note_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        const title = item.title ? String(item.title) : 'Không có tiêu đề';
+        const content = item.content ? String(item.content) : '';
+        const priority = ['high', 'medium', 'low'].includes(item.priority) ? item.priority : 'low';
+        const status = ['none', 'todo', 'doing', 'done'].includes(item.status) ? item.status : 'none';
+        const isPinned = !!item.isPinned;
+        const tags = Array.isArray(item.tags) ? item.tags.map((t: any) => String(t)) : [];
+        const remindTime = item.remindTime ? String(item.remindTime) : '';
+        const remindBefore = item.remindBefore ? String(item.remindBefore) : '0';
+        const created = item.created ? String(item.created) : new Date().toISOString();
+        const files = Array.isArray(item.files) ? item.files : [];
+        const aiSummary = item.aiSummary ? String(item.aiSummary) : undefined;
+        const aiChecklist = Array.isArray(item.aiChecklist) ? item.aiChecklist.map((c: any) => String(c)) : undefined;
+
+        validatedNotes.push({
+          id,
+          title,
+          content,
+          priority,
+          status,
+          isPinned,
+          tags,
+          remindTime,
+          remindBefore,
+          created,
+          files,
+          aiSummary,
+          aiChecklist,
+        });
+      }
+
+      if (validatedNotes.length === 0) {
+        throw new Error('Không tìm thấy ghi chú hợp lệ nào trong tệp này.');
+      }
+
+      if (strategy === 'overwrite') {
+        setNotes(validatedNotes);
+        setErrorMessage(null);
+        showSuccess(`Khôi phục thành công! Đã ghi đè ${validatedNotes.length} ghi chú.`);
+      } else {
+        setNotes((prev) => {
+          const prevMap = new Map(prev.map(n => [n.id, n]));
+          validatedNotes.forEach(n => {
+            prevMap.set(n.id, n);
+          });
+          return Array.from(prevMap.values());
+        });
+        setErrorMessage(null);
+        showSuccess(`Nhập dữ liệu thành công! Đã hợp nhất ${validatedNotes.length} ghi chú.`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMessage(`Nhập bản sao lưu thất bại: ${err.message || 'Lỗi đọc tệp tin JSON.'}`);
+    }
+  };
+
   const handleInstallAppClick = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -494,6 +678,17 @@ export default function App() {
         syncConfig={syncConfig}
         onUpdateSyncConfig={handleUpdateSyncConfig}
         isOnline={isOnline}
+        onExportJSON={handleExportJSON}
+        onImportJSON={handleImportJSON}
+        
+        gdriveUser={gdriveUser}
+        gdriveToken={gdriveToken}
+        onLoginDrive={handleLoginDrive}
+        onLogoutDrive={handleLogoutDrive}
+        onBackupDrive={handleBackupDrive}
+        onRestoreDrive={handleRestoreDrive}
+        isBackingUpDrive={isBackingUpDrive}
+        isRestoringDrive={isRestoringDrive}
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:p-6 w-full flex-1">
@@ -695,6 +890,8 @@ export default function App() {
           setNoteToEdit(null);
         }}
         onSave={handleSaveNote}
+        gdriveToken={gdriveToken}
+        onLoginDrive={handleLoginDrive}
       />
 
       {/* Interactive Note Detail View Modal controller */}

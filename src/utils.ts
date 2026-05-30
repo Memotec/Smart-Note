@@ -161,3 +161,104 @@ export function getStatusMetadata(status: NoteStatus | undefined) {
   }
 }
 
+export interface ColorPreset {
+  id: string;
+  label: string;
+  bgClass: string;
+  hoverBgClass: string;
+  borderClass: string;
+  textMuted: string;
+  accentClass: string;
+  bgHexColors: string; // Used for color picker selectors
+}
+
+export const NOTE_COLORS: ColorPreset[] = [
+  {
+    id: 'default',
+    label: 'Mặc định',
+    bgClass: 'bg-slate-850/20',
+    hoverBgClass: 'hover:bg-slate-800/30',
+    borderClass: 'border-slate-800/80 hover:border-slate-750/70',
+    textMuted: 'text-slate-500',
+    accentClass: 'text-indigo-400',
+    bgHexColors: '#1e293b',
+  },
+  {
+    id: 'indigo',
+    label: 'Tím Indigo',
+    bgClass: 'bg-indigo-950/15',
+    hoverBgClass: 'hover:bg-indigo-950/25',
+    borderClass: 'border-indigo-500/25 hover:border-indigo-500/40',
+    textMuted: 'text-indigo-400/70',
+    accentClass: 'text-indigo-300',
+    bgHexColors: '#312e81',
+  },
+  {
+    id: 'emerald',
+    label: 'Xanh lục bảo',
+    bgClass: 'bg-emerald-950/15',
+    hoverBgClass: 'hover:bg-emerald-950/25',
+    borderClass: 'border-emerald-500/25 hover:border-emerald-500/40',
+    textMuted: 'text-emerald-400/70',
+    accentClass: 'text-emerald-300',
+    bgHexColors: '#064e3b',
+  },
+  {
+    id: 'ocean',
+    label: 'Xanh đại dương',
+    bgClass: 'bg-sky-950/15',
+    hoverBgClass: 'hover:bg-sky-950/25',
+    borderClass: 'border-sky-500/25 hover:border-sky-500/40',
+    textMuted: 'text-sky-400/70',
+    accentClass: 'text-sky-300',
+    bgHexColors: '#0c4a6e',
+  },
+  {
+    id: 'amber',
+    label: 'Hổ phách',
+    bgClass: 'bg-amber-950/15',
+    hoverBgClass: 'hover:bg-amber-950/25',
+    borderClass: 'border-amber-500/25 hover:border-amber-500/40',
+    textMuted: 'text-amber-400/70',
+    accentClass: 'text-amber-300',
+    bgHexColors: '#78350f',
+  },
+  {
+    id: 'rose',
+    label: 'Hồng nhung',
+    bgClass: 'bg-rose-950/10',
+    hoverBgClass: 'hover:bg-rose-950/20',
+    borderClass: 'border-rose-500/25 hover:border-rose-500/40',
+    textMuted: 'text-rose-400/70',
+    accentClass: 'text-rose-300',
+    bgHexColors: '#4c0519',
+  },
+  {
+    id: 'violet',
+    label: 'Hoa oải hương',
+    bgClass: 'bg-violet-950/15',
+    hoverBgClass: 'hover:bg-violet-950/25',
+    borderClass: 'border-violet-500/25 hover:border-violet-500/40',
+    textMuted: 'text-violet-400/70',
+    accentClass: 'text-violet-300',
+    bgHexColors: '#4c1d95',
+  },
+  {
+    id: 'teal',
+    label: 'Thanh ngọc',
+    bgClass: 'bg-teal-950/15',
+    hoverBgClass: 'hover:bg-teal-950/25',
+    borderClass: 'border-teal-500/25 hover:border-teal-500/40',
+    textMuted: 'text-teal-400/70',
+    accentClass: 'text-teal-300',
+    bgHexColors: '#115e59',
+  }
+];
+
+export function getNoteColorMetadata(colorId: string | undefined): ColorPreset {
+  const defaultPreset = NOTE_COLORS[0];
+  if (!colorId) return defaultPreset;
+  return NOTE_COLORS.find(p => p.id === colorId) || defaultPreset;
+}
+
+
